@@ -412,6 +412,7 @@ export default function App() {
   )
   const [javResolvedIdols, setJavResolvedIdols] = useState({})
   const [toastMessage, setToastMessage] = useState('')
+  const [toastDuration, setToastDuration] = useState(1800)
   const [centerToastMessage, setCenterToastMessage] = useState('')
   const javSortResolution = resolveJavSort({
     javSearchTerm,
@@ -489,8 +490,9 @@ export default function App() {
       : alternatePlayer === 'system'
         ? zh('用默认程序打开', 'Open with default app')
         : ''
-  const showToast = useCallback((message) => {
+  const showToast = useCallback((message, duration = 1800) => {
     setToastMessage(String(message || '').trim())
+    setToastDuration(duration)
   }, [])
   const closeToast = useCallback(() => {
     setToastMessage('')
@@ -906,10 +908,52 @@ export default function App() {
     setJavVideoPickerAction('play')
   }, [])
 
+  const playVideosWithMPV = useCallback(
+    async (items) => {
+      const list = Array.isArray(items) ? items : []
+      const targets = list
+        .map((video) => {
+          const videoId = Number(video?.id)
+          const locationId = Number(video?.location_id || 0)
+          if (!Number.isFinite(videoId) || videoId <= 0) return null
+          return {
+            video_id: videoId,
+            location_id: Number.isFinite(locationId) && locationId > 0 ? locationId : 0,
+            title: video?.filename || `Video #${videoId}`,
+          }
+        })
+        .filter(Boolean)
+      if (targets.length !== list.length || targets.length === 0) {
+        showCenterToast(
+          zh(
+            '无法播放：部分视频缺少文件信息',
+            'Cannot play: some videos are missing file information'
+          )
+        )
+        return
+      }
+      if (!confirmLargeMPVPlaylist(targets.length)) return
+
+      const result = await playVideoPlaylist(targets)
+      const count = Number(result?.count) || targets.length
+      showToast(
+        zh(`已将 ${count} 个视频加入 MPV 播放列表`, `Added ${count} videos to the MPV playlist`)
+      )
+      return true
+    },
+    [showCenterToast, showToast]
+  )
+
   const handleJavPlay = useCallback(
     (video, item) => {
       const videos = item?.videos || []
       if (videos.length > 1) {
+        if (defaultPlayer === 'mpv') {
+          playVideosWithMPV(videos).catch((err) => {
+            showCenterToast(getErrorMessage(err))
+          })
+          return
+        }
         setJavVideoPickerAction('play')
         setJavVideoPickerItem(item)
         setJavVideoPickerOpen(true)
@@ -920,13 +964,19 @@ export default function App() {
         handleOpenPlayer(target)
       }
     },
-    [handleOpenPlayer]
+    [defaultPlayer, playVideosWithMPV, showCenterToast, handleOpenPlayer]
   )
 
   const handleJavOpenFile = useCallback(
     (video, item) => {
       const videos = item?.videos || (video ? [video] : [])
       if (videos.length > 1) {
+        if (alternatePlayer === 'mpv') {
+          playVideosWithMPV(videos).catch((err) => {
+            showCenterToast(getErrorMessage(err))
+          })
+          return
+        }
         setJavVideoPickerAction('open')
         setJavVideoPickerItem(item)
         setJavVideoPickerOpen(true)
@@ -936,7 +986,13 @@ export default function App() {
       if (!target) return
       handleOpenAlternatePlayer(target)
     },
-    [handleOpenAlternatePlayer, isVideoOpenable]
+    [
+      alternatePlayer,
+      playVideosWithMPV,
+      showCenterToast,
+      handleOpenAlternatePlayer,
+      isVideoOpenable,
+    ]
   )
 
   const handleJavRevealFile = useCallback(
@@ -3833,42 +3889,6 @@ export default function App() {
     return items
   }, [randomMode, searchTerm, selectedTags, sortOrder, total, videoHideJav, videoTempSort, videos])
 
-  const playVideosWithMPV = useCallback(
-    async (items) => {
-      const list = Array.isArray(items) ? items : []
-      const targets = list
-        .map((video) => {
-          const videoId = Number(video?.id)
-          const locationId = Number(video?.location_id || 0)
-          if (!Number.isFinite(videoId) || videoId <= 0) return null
-          return {
-            video_id: videoId,
-            location_id: Number.isFinite(locationId) && locationId > 0 ? locationId : 0,
-            title: video?.filename || `Video #${videoId}`,
-          }
-        })
-        .filter(Boolean)
-      if (targets.length !== list.length || targets.length === 0) {
-        showCenterToast(
-          zh(
-            '无法播放：部分视频缺少文件信息',
-            'Cannot play: some videos are missing file information'
-          )
-        )
-        return
-      }
-      if (!confirmLargeMPVPlaylist(targets.length)) return
-
-      const result = await playVideoPlaylist(targets)
-      const count = Number(result?.count) || targets.length
-      showToast(
-        zh(`已将 ${count} 个视频加入 MPV 播放列表`, `Added ${count} videos to the MPV playlist`)
-      )
-      return true
-    },
-    [showCenterToast, showToast]
-  )
-
   const javSelection = useJavSelection({
     items: javItems,
     mpvEnabled,
@@ -4403,6 +4423,7 @@ export default function App() {
         prefix={javPrefix}
         soloOnly={javSoloOnly}
         preferChineseName={configFlag(config?.jav_idol_prefer_chinese_name)}
+        showSimplifiedTags={configFlag(config?.jav_tag_show_simplified)}
         favoriteGroupId={javFavoriteGroupId}
         favoriteRatingEnabled={javFavoriteRatingEnabled}
         favoriteRatingMin={javFavoriteRatingMin}
@@ -4869,7 +4890,8 @@ export default function App() {
             zh(
               '目录添加成功，首次扫描目录里的视频需要一定时间，请耐心等待，您可手动刷新页面查看扫描进度',
               'Directory added. The first scan may take some time. You can refresh manually to check progress.'
-            )
+            ),
+            4000
           )
           return created
         }}
@@ -4886,13 +4908,13 @@ export default function App() {
         onProcessDirectory={async (id, mode, layout) => {
           const result = await processDirectory(id, mode, layout)
           await loadDirectories()
-          showToast(zh('目录任务已启动', 'Directory task started'))
+          showToast(zh('目录任务已启动', 'Directory task started'), 4000)
           return result
         }}
         onScanDirectory={async (id) => {
           const result = await scanDirectory(id)
           await loadDirectories()
-          showToast(zh('目录扫描已启动', 'Directory scan started'))
+          showToast(zh('目录扫描已启动', 'Directory scan started'), 4000)
           return result
         }}
         onRefreshDirectories={loadDirectories}
@@ -4980,7 +5002,12 @@ export default function App() {
         onChangePassword={changePassword}
         onLogout={logout}
       />
-      <Toast open={Boolean(toastMessage)} message={toastMessage} onClose={closeToast} />
+      <Toast
+        open={Boolean(toastMessage)}
+        message={toastMessage}
+        duration={toastDuration}
+        onClose={closeToast}
+      />
       <CenterToast
         open={Boolean(centerToastMessage)}
         message={centerToastMessage}

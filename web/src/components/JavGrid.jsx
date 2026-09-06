@@ -10,7 +10,7 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import FavoriteBorderRoundedIcon from '@mui/icons-material/FavoriteBorderRounded'
 import FavoriteRoundedIcon from '@mui/icons-material/FavoriteRounded'
 import LocalOfferOutlinedIcon from '@mui/icons-material/LocalOfferOutlined'
-import MovieCreationIcon from '@mui/icons-material/MovieCreation'
+import CollectionsBookmarkOutlinedIcon from '@mui/icons-material/CollectionsBookmarkOutlined'
 import PlayArrowIcon from '@mui/icons-material/PlayArrow'
 import PhotoLibraryOutlinedIcon from '@mui/icons-material/PhotoLibraryOutlined'
 import RemoveCircleOutlineRoundedIcon from '@mui/icons-material/RemoveCircleOutlineRounded'
@@ -3020,20 +3020,20 @@ function JavCard({
           </div>
           <div className="flex min-w-0 flex-nowrap items-center gap-x-3 overflow-hidden text-xs text-gray-600">
             <span className="inline-flex shrink-0 items-center gap-1">
-              <Tooltip title={zh('时长', 'Duration')} arrow>
-                <span className="inline-flex">
-                  <DurationIcon />
-                </span>
-              </Tooltip>
-              <span>{durationText || zh('时长未知', 'Unknown duration')}</span>
-            </span>
-            <span className="inline-flex shrink-0 items-center gap-1">
               <Tooltip title={zh('发行日期', 'Release date')} arrow>
                 <span className="inline-flex">
                   <ReleaseIcon />
                 </span>
               </Tooltip>
               <span>{releaseText}</span>
+            </span>
+            <span className="inline-flex shrink-0 items-center gap-1">
+              <Tooltip title={zh('时长', 'Duration')} arrow>
+                <span className="inline-flex">
+                  <DurationIcon />
+                </span>
+              </Tooltip>
+              <span>{durationText || zh('时长未知', 'Unknown duration')}</span>
             </span>
             {studioText ? (
               <span className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
@@ -3061,10 +3061,13 @@ function JavCard({
             ) : null}
           </div>
           {!hideSeries && seriesText ? (
-            <div className="flex min-w-0 items-start gap-1 text-xs text-gray-600">
+            <div className="flex min-w-0 items-center gap-1 text-xs text-gray-600">
               <Tooltip title={zh('系列', 'Series')} arrow>
                 <span className="inline-flex">
-                  <MovieCreationIcon sx={{ fontSize: 16 }} className="shrink-0 text-emerald-600" />
+                  <CollectionsBookmarkOutlinedIcon
+                    sx={{ fontSize: 14 }}
+                    className="shrink-0 text-emerald-600"
+                  />
                 </span>
               </Tooltip>
               <a
@@ -3297,10 +3300,7 @@ function JavCard({
           preferChineseName={preferChineseName}
           canPlay={canPlay}
           onClose={() => setDetailOpen(false)}
-          onPlay={() => {
-            if (onManageVideoPlay) onManageVideoPlay(primaryVideo)
-            else onPlay?.(primaryVideo, item)
-          }}
+          onPlay={handlePlay}
           onOpenFavorites={() => onOpenJavFavorites?.(item)}
           onEdit={() => setEditorOpen(true)}
           favoriteRating={favoriteRating}
